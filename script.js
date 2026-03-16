@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+const { useState, useMemo } = React;
 
 const fmtM = (n) => {
   const abs = Math.abs(n);
@@ -50,6 +50,23 @@ const InfoRow = ({ label, value, color = "#555", bold, sub }) => (
     <span style={{ fontWeight: bold ? 700 : 500, color, marginLeft: 8, textAlign: "right" }}>{value}</span>
   </div>
 );
+
+const AgeInput = ({ label, valueKey, p, set }) => {
+  const [fc, setFc] = useState(false);
+  return (
+    <div style={{ background: "#f5f6f8", borderRadius: 8, padding: "9px 10px 7px", border: "1px solid #eee" }}>
+      <div style={{ fontSize: 10, color: "#aaa", marginBottom: 3 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+        <input type="number" value={fc && p[valueKey] === 0 ? "" : p[valueKey]}
+          onFocus={() => setFc(true)}
+          onBlur={e => { setFc(false); if (e.target.value === "") set(valueKey)(0); }}
+          onChange={e => set(valueKey)(e.target.value === "" ? 0 : Number(e.target.value))}
+          style={{ width: "100%", border: "none", background: "transparent", fontSize: 20, fontWeight: 700, color: "#222", outline: "none", padding: 0 }} />
+        <span style={{ fontSize: 11, color: "#aaa" }}>세</span>
+      </div>
+    </div>
+  );
+};
 
 function calcAt(p, retireAge, overrideInvest) {
   const { lifeExpect, monthlyIncome, monthlySpend,
@@ -107,7 +124,7 @@ function calcAt(p, retireAge, overrideInvest) {
   return { fa, propVal, netAsset, spend, investIncome, exhaustAge };
 }
 
-export default function App() {
+function App() {
   const [mode, setMode] = useState("A");
   const [tab, setTab] = useState("input");
   const [p, setP] = useState({
@@ -119,7 +136,6 @@ export default function App() {
     pensionAge2: 0, monthlyPension2: 0,
     rentalIncome: 0,
     targetSpend: 300, targetRetireAge: 55,
-    // 리밸런싱 탭
     rbRetireAge: 55, rbTargetSpend: 300, rbConvertPct: 0,
   });
   const set = k => v => setP(prev => ({ ...prev, [k]: v }));
@@ -138,19 +154,12 @@ export default function App() {
   const resultA = useMemo(() => findEarliestAge(p.targetSpend), [p]);
   const resultB = useMemo(() => calcAt(p, p.targetRetireAge), [p]);
 
-  // 리밸런싱 계산
   const rbResult = useMemo(() => {
-    const totalMovable = p.investAsset + p.propertyAsset; // 만원
-    // 슬라이더: 부동산 → 투자자산 전환 비율 (0~100%)
-    // rbConvertPct: 부동산에서 몇 %를 투자자산으로 전환
     const converted = Math.round(p.propertyAsset * p.rbConvertPct / 100);
     const newInvest = p.investAsset + converted;
     const newProp = p.propertyAsset - converted;
-
     const base = calcAt(p, p.rbRetireAge);
     const adj = calcAt({ ...p, investAsset: newInvest, propertyAsset: newProp }, p.rbRetireAge);
-
-    // 목표 달성을 위한 최적 전환 비율 자동 탐색
     let optPct = null;
     const target = p.rbTargetSpend * 10000;
     if (adj.spend < target) {
@@ -162,7 +171,6 @@ export default function App() {
     } else {
       optPct = p.rbConvertPct;
     }
-
     return { base, adj, converted, newInvest, newProp, optPct };
   }, [p]);
 
@@ -249,16 +257,13 @@ export default function App() {
     );
   };
 
-  // ── 리밸런싱 탭 ──
   const RbTab = () => {
-    const { base, adj, converted, newInvest, newProp, optPct } = rbResult;
+    const { base, adj, converted, optPct } = rbResult;
     const baseSpendM = Math.round(base.spend / 10000);
     const adjSpendM = Math.round(adj.spend / 10000);
     const diff = adjSpendM - baseSpendM;
     const targetMet = adjSpendM >= p.rbTargetSpend;
-    const convertedAmt = converted * 10000; // 원 단위
-
-    // 비율 바 계산 (은퇴 시 기준)
+    const convertedAmt = converted * 10000;
     const totalVal = adj.fa + adj.propVal;
     const investPct = totalVal > 0 ? (adj.fa / totalVal * 100) : 0;
     const propPct = 100 - investPct;
@@ -272,8 +277,6 @@ export default function App() {
             { label: "목표 월 지출액", value: p.rbTargetSpend, onChange: set("rbTargetSpend"), unit: "만원", step: 10 },
           ]} />
         </div>
-
-        {/* 슬라이더 */}
         <div style={{ background: "#fff", borderRadius: 10, padding: "13px 15px", marginBottom: 12, border: "1px solid #f0f0f0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#bbb", letterSpacing: 1 }}>부동산 → 투자자산 전환</div>
@@ -283,16 +286,13 @@ export default function App() {
             onChange={e => set("rbConvertPct")(Number(e.target.value))}
             style={{ width: "100%", accentColor: "#4f8ef7", marginBottom: 8 }} />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#aaa", marginBottom: 12 }}>
-            <span>전환 없음</span>
-            <span>전액 전환</span>
+            <span>전환 없음</span><span>전액 전환</span>
           </div>
           {converted > 0 && (
             <div style={{ background: "#f0f7ff", borderRadius: 7, padding: "8px 12px", fontSize: 12, color: "#4f8ef7", marginBottom: 10 }}>
               부동산 <strong>{fmtM(convertedAmt)}원</strong> → 투자자산으로 전환
             </div>
           )}
-
-          {/* 전환 후 자산 구성 바 */}
           <div style={{ fontSize: 11, color: "#aaa", marginBottom: 5 }}>은퇴 시 자산 구성 (전환 후)</div>
           <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", height: 18, marginBottom: 4 }}>
             <div style={{ width: investPct + "%", background: "#4f8ef7", transition: "width 0.3s" }} />
@@ -303,8 +303,6 @@ export default function App() {
             <span style={{ color: "#f7a94f" }}>● 부동산 {propPct.toFixed(0)}% ({fmtM(adj.propVal)}원)</span>
           </div>
         </div>
-
-        {/* 결과 비교 */}
         <div style={{ background: "#fff", borderRadius: 10, padding: "13px 15px", marginBottom: 12, border: "1px solid #f0f0f0" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#bbb", letterSpacing: 1, marginBottom: 10 }}>월 지출 가능액 비교</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
@@ -326,21 +324,15 @@ export default function App() {
           {diff !== 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingTop: 6 }}>
               <span style={{ color: "#888" }}>전환으로 인한 변화</span>
-              <span style={{ fontWeight: 700, color: diff > 0 ? "#34c48b" : "#f47f7f" }}>
-                {diff > 0 ? "+" : ""}{fmt(diff)}만원/월
-              </span>
+              <span style={{ fontWeight: 700, color: diff > 0 ? "#34c48b" : "#f47f7f" }}>{diff > 0 ? "+" : ""}{fmt(diff)}만원/월</span>
             </div>
           )}
         </div>
-
-        {/* 추천 전환 비율 */}
         <div style={{ background: optPct !== null && optPct <= p.rbConvertPct ? "#eafaf2" : "#fff8ec", borderRadius: 10, padding: "13px 15px", marginBottom: 12, border: `1px solid ${optPct !== null && optPct <= p.rbConvertPct ? "#34c48b" : "#f7a94f"}30` }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#bbb", letterSpacing: 1, marginBottom: 8 }}>💡 자동 추천</div>
           {optPct !== null ? (
             targetMet && p.rbConvertPct <= optPct + 1 ? (
-              <div style={{ fontSize: 13, color: "#34c48b", fontWeight: 600 }}>
-                ✅ 현재 설정으로 목표 달성 가능합니다
-              </div>
+              <div style={{ fontSize: 13, color: "#34c48b", fontWeight: 600 }}>✅ 현재 설정으로 목표 달성 가능합니다</div>
             ) : (
               <div>
                 <div style={{ fontSize: 13, color: "#555", marginBottom: 8 }}>
@@ -363,7 +355,6 @@ export default function App() {
             </div>
           )}
         </div>
-
         <div style={{ fontSize: 10, color: "#ccc", textAlign: "center", lineHeight: 1.7 }}>
           본 계산기는 참고용이며 실제 은퇴 설계는<br />금융 전문가와 상담하시길 권장합니다
         </div>
@@ -420,22 +411,8 @@ export default function App() {
           <div>
             <G title="기본 정보">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                {[["현재 나이", "currentAge", "세"], ["기대 수명", "lifeExpect", "세"]].map(([l, k, u]) => {
-                  const [fc, setFc] = useState(false);
-                  return (
-                    <div key={k} style={{ background: "#f5f6f8", borderRadius: 8, padding: "9px 10px 7px", border: "1px solid #eee" }}>
-                      <div style={{ fontSize: 10, color: "#aaa", marginBottom: 3 }}>{l}</div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-                        <input type="number" value={fc && p[k] === 0 ? "" : p[k]}
-                          onFocus={() => setFc(true)}
-                          onBlur={e => { setFc(false); if (e.target.value === "") set(k)(0); }}
-                          onChange={e => set(k)(e.target.value === "" ? 0 : Number(e.target.value))}
-                          style={{ width: "100%", border: "none", background: "transparent", fontSize: 20, fontWeight: 700, color: "#222", outline: "none", padding: 0 }} />
-                        <span style={{ fontSize: 11, color: "#aaa" }}>{u}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                <AgeInput label="현재 나이" valueKey="currentAge" p={p} set={set} />
+                <AgeInput label="기대 수명" valueKey="lifeExpect" p={p} set={set} />
               </div>
               {mode === "A"
                 ? <F label="목표 월 지출액" value={p.targetSpend} onChange={set("targetSpend")} unit="만원" step={10} hint="은퇴 후 원하는 월 지출" />
@@ -491,3 +468,5 @@ export default function App() {
     </div>
   );
 }
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
